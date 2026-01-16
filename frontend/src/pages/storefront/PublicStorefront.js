@@ -5,6 +5,7 @@ import { useProducts } from '../../context/ProductsContext';
 import { useOrders } from '../../context/OrdersContext';
 import { Button, Badge, Spinner } from '../../components/ui';
 import { companyBranding } from '../../data/mockData';
+import { getSubdomain, getStoreUrl } from '../../utils/subdomain';
 import {
   ShoppingBagIcon,
   MagnifyingGlassIcon,
@@ -18,12 +19,12 @@ import {
 import { ShoppingCartIcon as ShoppingCartSolidIcon } from '@heroicons/react/24/solid';
 
 /**
- * Public Storefront - Customer-facing view accessible via /store/:storeSlug
- * Each client has their own unique store URL
+ * Public Storefront - Customer-facing view accessible via subdomain or /store/:storeSlug
+ * Each client has their own unique store URL (e.g., mystore.hydrolify.vercel.app)
  */
 export default function PublicStorefront() {
   const { storeSlug } = useParams();
-  const { getStoreBySlug, getActiveStores } = useStore();
+  const { getStoreBySlug, getStoreBySubdomain, getActiveStores } = useStore();
   const { getProductsByStore } = useProducts();
   const { addOrder } = useOrders();
 
@@ -37,14 +38,25 @@ export default function PublicStorefront() {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Load store data based on slug
+  // Load store data based on subdomain or slug
   useEffect(() => {
     const loadStore = () => {
       setIsLoading(true);
       
       // Simulate API delay
       setTimeout(() => {
-        const foundStore = getStoreBySlug(storeSlug);
+        let foundStore = null;
+        
+        // First, check for subdomain
+        const subdomain = getSubdomain();
+        if (subdomain) {
+          foundStore = getStoreBySubdomain(subdomain);
+        }
+        
+        // Fall back to URL slug if no subdomain match
+        if (!foundStore && storeSlug) {
+          foundStore = getStoreBySlug(storeSlug);
+        }
         
         if (foundStore) {
           setStore(foundStore);
@@ -60,7 +72,7 @@ export default function PublicStorefront() {
     };
 
     loadStore();
-  }, [storeSlug, getStoreBySlug, getProductsByStore]);
+  }, [storeSlug, getStoreBySlug, getStoreBySubdomain, getProductsByStore]);
 
   // Get active products only
   const activeProducts = products.filter((p) => p.status === 'active');
@@ -132,6 +144,9 @@ export default function PublicStorefront() {
   // Store not found
   if (notFound) {
     const activeStores = getActiveStores();
+    const subdomain = getSubdomain();
+    const searchedName = subdomain || storeSlug;
+    
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center max-w-md px-4">
@@ -140,7 +155,7 @@ export default function PublicStorefront() {
             Store Not Found
           </h1>
           <p className="text-secondary-600 mb-6">
-            The store "{storeSlug}" doesn't exist or is no longer available.
+            The store "{searchedName}" doesn't exist or is no longer available.
           </p>
           
           {activeStores.length > 0 && (
@@ -150,9 +165,9 @@ export default function PublicStorefront() {
               </p>
               <div className="space-y-2">
                 {activeStores.map((s) => (
-                  <Link
+                  <a
                     key={s.id}
-                    to={`/store/${s.slug}`}
+                    href={getStoreUrl(s.subdomain)}
                     className="block p-3 bg-white rounded-lg border border-gray-200 hover:border-primary-300 hover:shadow-sm transition-all"
                   >
                     <div className="flex items-center gap-3">
@@ -164,10 +179,10 @@ export default function PublicStorefront() {
                       </div>
                       <div className="text-left">
                         <p className="font-medium text-secondary-800">{s.storeName}</p>
-                        <p className="text-xs text-secondary-500">{s.description}</p>
+                        <p className="text-xs text-secondary-500">{s.subdomain}.hydrolify.vercel.app</p>
                       </div>
                     </div>
-                  </Link>
+                  </a>
                 ))}
               </div>
             </div>

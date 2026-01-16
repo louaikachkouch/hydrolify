@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useProducts } from '../../context/ProductsContext';
 import { companyBranding } from '../../data/mockData';
+import { getStoreUrl } from '../../utils/subdomain';
 import { Button } from '../../components/ui';
 import {
   ShoppingBagIcon,
@@ -112,9 +113,9 @@ export default function StoreDirectory() {
               const activeProducts = storeProducts.filter(p => p.status === 'active');
               
               return (
-                <Link
+                <a
                   key={store.id}
-                  to={`/store/${store.slug}`}
+                  href={getStoreUrl(store.subdomain)}
                   className="group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300"
                 >
                   {/* Store Banner */}
@@ -140,6 +141,9 @@ export default function StoreDirectory() {
                     <h3 className="text-lg font-bold text-secondary-800 mb-1 group-hover:text-primary-600 transition-colors">
                       {store.storeName}
                     </h3>
+                    <p className="text-xs text-secondary-400 font-mono mb-2">
+                      {store.subdomain}.hydrolify.vercel.app
+                    </p>
                     <p className="text-sm text-secondary-500 mb-4 line-clamp-2">
                       {store.description || 'Discover amazing products at great prices'}
                     </p>
@@ -177,7 +181,7 @@ export default function StoreDirectory() {
                       </div>
                     )}
                   </div>
-                </Link>
+                </a>
               );
             })}
           </div>

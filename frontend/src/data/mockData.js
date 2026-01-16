@@ -24,6 +24,7 @@ export const mockStores = [
   {
     id: 1,
     slug: 'demo-store',
+    subdomain: 'demo-store',
     ownerId: 1,
     storeName: 'Demo Store',
     storeEmail: 'contact@demo-store.com',
@@ -40,6 +41,7 @@ export const mockStores = [
   {
     id: 2,
     slug: 'fashion-boutique',
+    subdomain: 'fashion-boutique',
     ownerId: 2,
     storeName: 'Fashion Boutique',
     storeEmail: 'hello@fashionboutique.tn',
@@ -56,6 +58,7 @@ export const mockStores = [
   {
     id: 3,
     slug: 'tech-zone',
+    subdomain: 'tech-zone',
     ownerId: 3,
     storeName: 'Tech Zone',
     storeEmail: 'support@techzone.tn',

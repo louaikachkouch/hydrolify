@@ -5,6 +5,7 @@ import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Badge, Logo } from '../../components/ui';
 import { companyBranding } from '../../data/mockData';
+import { getStoreUrl } from '../../utils/subdomain';
 import {
   ShoppingBagIcon,
   MagnifyingGlassIcon,
@@ -71,26 +72,33 @@ export default function Storefront() {
   );
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Get public store URL
-  const publicStoreUrl = settings.slug ? `/store/${settings.slug}` : null;
+  // Get public store URL with subdomain
+  const publicStoreUrl = settings.subdomain ? getStoreUrl(settings.subdomain) : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Preview Banner */}
       <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <p className="text-sm text-yellow-800">
-            <span className="font-medium">Preview Mode</span> - This is how your store looks to customers
-          </p>
+          <div>
+            <p className="text-sm text-yellow-800">
+              <span className="font-medium">Preview Mode</span> - This is how your store looks to customers
+            </p>
+            {settings.subdomain && (
+              <p className="text-xs text-yellow-600 font-mono mt-0.5">
+                {settings.subdomain}.hydrolify.vercel.app
+              </p>
+            )}
+          </div>
           {publicStoreUrl && (
             <a
               href={publicStoreUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-sm text-yellow-700 hover:text-yellow-900"
+              className="flex items-center gap-1 text-sm text-yellow-700 hover:text-yellow-900 bg-yellow-100 px-3 py-1 rounded-lg"
             >
               <LinkIcon className="h-4 w-4" />
-              View Public Store
+              Visit Live Store
             </a>
           )}
         </div>

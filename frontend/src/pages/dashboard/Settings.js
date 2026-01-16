@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
+import { getStoreUrl, validateSubdomain } from '../../utils/subdomain';
 import {
   Card,
   CardTitle,
@@ -16,6 +17,8 @@ import {
   GlobeAltIcon,
   CheckCircleIcon,
   LinkIcon,
+  ExclamationCircleIcon,
+  ClipboardDocumentIcon,
 } from '@heroicons/react/24/outline';
 
 /**
@@ -23,7 +26,7 @@ import {
  */
 export default function Settings() {
   const { user } = useAuth();
-  const { settings, updateSettings, currentStoreId } = useStore();
+  const { settings, updateSettings, updateSubdomain, isSubdomainAvailable, currentStoreId } = useStore();
   
   const [formData, setFormData] = useState({
     storeName: settings.storeName || '',
@@ -35,6 +38,14 @@ export default function Settings() {
     timezone: settings.timezone || 'Africa/Tunis',
     description: settings.description || '',
   });
+  
+  // Subdomain state
+  const [subdomain, setSubdomain] = useState(settings.subdomain || '');
+  const [subdomainError, setSubdomainError] = useState('');
+  const [subdomainSuccess, setSubdomainSuccess] = useState(false);
+  const [isSubdomainLoading, setIsSubdomainLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -50,6 +61,7 @@ export default function Settings() {
       timezone: settings.timezone || 'Africa/Tunis',
       description: settings.description || '',
     });
+    setSubdomain(settings.subdomain || '');
   }, [settings]);
 
   // Currency options
@@ -94,6 +106,58 @@ export default function Settings() {
     setIsSaved(false);
   };
 
+  // Handle subdomain change
+  const handleSubdomainChange = (e) => {
+    const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    setSubdomain(value);
+    setSubdomainError('');
+    setSubdomainSuccess(false);
+  };
+
+  // Validate and update subdomain
+  const handleSubdomainUpdate = async () => {
+    setIsSubdomainLoading(true);
+    setSubdomainError('');
+    setSubdomainSuccess(false);
+
+    // Validate format
+    const validation = validateSubdomain(subdomain);
+    if (!validation.isValid) {
+      setSubdomainError(validation.error);
+      setIsSubdomainLoading(false);
+      return;
+    }
+
+    // Check availability
+    if (!isSubdomainAvailable(subdomain, currentStoreId)) {
+      setSubdomainError('This subdomain is already taken');
+      setIsSubdomainLoading(false);
+      return;
+    }
+
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const result = updateSubdomain(subdomain);
+    
+    if (result.success) {
+      setSubdomainSuccess(true);
+      setTimeout(() => setSubdomainSuccess(false), 3000);
+    } else {
+      setSubdomainError(result.error);
+    }
+    
+    setIsSubdomainLoading(false);
+  };
+
+  // Copy store URL to clipboard
+  const copyStoreUrl = () => {
+    const url = getStoreUrl(settings.subdomain);
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -126,6 +190,102 @@ export default function Settings() {
           <p className="text-sm text-green-700">Settings saved successfully!</p>
         </div>
       )}
+
+      {/* Store URL / Subdomain Settings */}
+      <Card>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center justify-center w-10 h-10 bg-indigo-100 rounded-lg">
+            <LinkIcon className="h-5 w-5 text-indigo-600" />
+          </div>
+          <div>
+            <CardTitle>Store URL</CardTitle>
+            <CardDescription>Customize your store's web address</CardDescription>
+          </div>
+        </div>
+
+        {/* Current Store URL */}
+        {settings.subdomain && (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <label className="block text-sm font-medium text-secondary-700 mb-2">
+              Your Store URL
+            </label>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-secondary-700 font-mono">
+                {getStoreUrl(settings.subdomain)}
+              </code>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={copyStoreUrl}
+                className="flex items-center gap-1"
+              >
+                <ClipboardDocumentIcon className="h-4 w-4" />
+                {copied ? 'Copied!' : 'Copy'}
+              </Button>
+              <a
+                href={getStoreUrl(settings.subdomain)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button type="button" variant="secondary" size="sm">
+                  Visit Store
+                </Button>
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Subdomain Input */}
+        <div>
+          <label className="block text-sm font-medium text-secondary-700 mb-2">
+            Subdomain
+          </label>
+          <div className="flex items-start gap-3">
+            <div className="flex-1">
+              <div className="flex">
+                <input
+                  type="text"
+                  value={subdomain}
+                  onChange={handleSubdomainChange}
+                  placeholder="your-store-name"
+                  className={`
+                    flex-1 px-3 py-2 border rounded-l-lg text-sm
+                    focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
+                    ${subdomainError ? 'border-red-300 bg-red-50' : 'border-gray-300'}
+                  `}
+                />
+                <span className="inline-flex items-center px-3 py-2 border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-r-lg">
+                  .hydrolify.vercel.app
+                </span>
+              </div>
+              {subdomainError && (
+                <div className="mt-2 flex items-center gap-1 text-sm text-red-600">
+                  <ExclamationCircleIcon className="h-4 w-4" />
+                  {subdomainError}
+                </div>
+              )}
+              {subdomainSuccess && (
+                <div className="mt-2 flex items-center gap-1 text-sm text-green-600">
+                  <CheckCircleIcon className="h-4 w-4" />
+                  Subdomain updated successfully!
+                </div>
+              )}
+              <p className="mt-2 text-xs text-secondary-500">
+                Only lowercase letters, numbers, and hyphens allowed. Must be 3-30 characters.
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={handleSubdomainUpdate}
+              isLoading={isSubdomainLoading}
+              disabled={subdomain === settings.subdomain || !subdomain}
+            >
+              Update URL
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Store Information */}

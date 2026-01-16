@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { mockStores } from '../data/mockData';
+import { validateSubdomain, normalizeSubdomain } from '../utils/subdomain';
 
 // Create the Store Context
 const StoreContext = createContext(null);
@@ -32,6 +33,48 @@ export function StoreProvider({ children }) {
   }, [stores]);
 
   /**
+   * Get store by subdomain (for subdomain-based routing)
+   */
+  const getStoreBySubdomain = useCallback((subdomain) => {
+    return stores.find(s => s.subdomain === subdomain && s.isActive);
+  }, [stores]);
+
+  /**
+   * Check if a subdomain is available
+   */
+  const isSubdomainAvailable = useCallback((subdomain, excludeStoreId = null) => {
+    const normalized = subdomain.toLowerCase().trim();
+    return !stores.some(s => 
+      s.subdomain === normalized && 
+      s.id !== excludeStoreId
+    );
+  }, [stores]);
+
+  /**
+   * Update store subdomain with validation
+   */
+  const updateSubdomain = useCallback((newSubdomain) => {
+    const normalized = normalizeSubdomain(newSubdomain);
+    const validation = validateSubdomain(normalized);
+    
+    if (!validation.isValid) {
+      return { success: false, error: validation.error };
+    }
+    
+    if (!isSubdomainAvailable(normalized, currentStoreId)) {
+      return { success: false, error: 'This subdomain is already taken' };
+    }
+    
+    setStores(prev => prev.map(store => 
+      store.id === currentStoreId 
+        ? { ...store, subdomain: normalized, slug: normalized }
+        : store
+    ));
+    
+    return { success: true, subdomain: normalized };
+  }, [currentStoreId, isSubdomainAvailable]);
+
+  /**
    * Get store by ID
    */
   const getStoreById = useCallback((id) => {
@@ -61,9 +104,11 @@ export function StoreProvider({ children }) {
    * Create a new store
    */
   const createStore = useCallback((storeData) => {
+    const subdomain = normalizeSubdomain(storeData.storeName);
     const newStore = {
       id: Math.max(...stores.map(s => s.id)) + 1,
-      slug: storeData.storeName.toLowerCase().replace(/\s+/g, '-'),
+      slug: subdomain,
+      subdomain: subdomain,
       isActive: true,
       createdAt: new Date().toISOString(),
       currency: 'TND',
@@ -93,9 +138,12 @@ export function StoreProvider({ children }) {
     currentStoreId,
     setCurrentStore,
     getStoreBySlug,
+    getStoreBySubdomain,
     getStoreById,
     getActiveStores,
     updateSettings,
+    updateSubdomain,
+    isSubdomainAvailable,
     createStore,
     resetSettings,
   };
