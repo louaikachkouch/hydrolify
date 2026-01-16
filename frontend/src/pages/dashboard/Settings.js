@@ -25,7 +25,7 @@ import {
  * Settings page for store configuration
  */
 export default function Settings() {
-  const { user } = useAuth();
+  useAuth(); // Auth context for protected route
   const { settings, updateSettings, updateSubdomain, isSubdomainAvailable, currentStoreId } = useStore();
   
   const [formData, setFormData] = useState({
@@ -239,25 +239,25 @@ export default function Settings() {
         {/* Subdomain Input */}
         <div>
           <label className="block text-sm font-medium text-secondary-700 mb-2">
-            Subdomain
+            Store URL Slug
           </label>
           <div className="flex items-start gap-3">
             <div className="flex-1">
               <div className="flex">
+                <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-lg">
+                  hydrolify.vercel.app/store/
+                </span>
                 <input
                   type="text"
                   value={subdomain}
                   onChange={handleSubdomainChange}
                   placeholder="your-store-name"
                   className={`
-                    flex-1 px-3 py-2 border rounded-l-lg text-sm
+                    flex-1 px-3 py-2 border rounded-r-lg text-sm
                     focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500
                     ${subdomainError ? 'border-red-300 bg-red-50' : 'border-gray-300'}
                   `}
                 />
-                <span className="inline-flex items-center px-3 py-2 border border-l-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-r-lg">
-                  .hydrolify.vercel.app
-                </span>
               </div>
               {subdomainError && (
                 <div className="mt-2 flex items-center gap-1 text-sm text-red-600">

@@ -10,7 +10,7 @@ import { Button, Input, Card, AuthHeader, PoweredBy } from '../../components/ui'
 export default function Register() {
   const navigate = useNavigate();
   const { register } = useAuth();
-  const { createStore, setCurrentStore } = useStore();
+  const { setCurrentStore } = useStore();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -77,15 +77,8 @@ export default function Register() {
     });
 
     if (result.success) {
-      // Create a new store for the user if this is a new registration
-      if (result.isNewStore && result.user) {
-        const newStore = createStore({
-          storeName: formData.storeName,
-          storeEmail: formData.email,
-          ownerId: result.user.id,
-        });
-        setCurrentStore(newStore.id);
-      } else if (result.user?.storeId) {
+      // Backend creates the store during registration - just set the current store
+      if (result.user?.storeId) {
         setCurrentStore(result.user.storeId);
       }
       navigate('/dashboard');

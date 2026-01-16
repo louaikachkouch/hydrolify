@@ -1,38 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../services/api';
 
 // Create the Auth Context
 const AuthContext = createContext(null);
-
-// Mock user data for demo purposes (with storeId for multi-tenant)
-const mockUsers = [
-  {
-    id: 1,
-    email: 'demo@Hydrolify.com',
-    password: 'demo123',
-    name: 'Demo User',
-    storeName: 'Demo Store',
-    storeId: 1,
-    storeSlug: 'demo-store',
-  },
-  {
-    id: 2,
-    email: 'fashion@Hydrolify.com',
-    password: 'fashion123',
-    name: 'Fashion Owner',
-    storeName: 'Fashion Boutique',
-    storeId: 2,
-    storeSlug: 'fashion-boutique',
-  },
-  {
-    id: 3,
-    email: 'tech@Hydrolify.com',
-    password: 'tech123',
-    name: 'Tech Owner',
-    storeName: 'Tech Zone',
-    storeId: 3,
-    storeSlug: 'tech-zone',
-  },
-];
 
 /**
  * AuthProvider component that wraps the app and provides authentication state
@@ -43,42 +13,43 @@ export function AuthProvider({ children }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('shopify_clone_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    const initAuth = async () => {
+      const savedUser = localStorage.getItem('hydrolify_user');
+      const savedToken = localStorage.getItem('hydrolify_token');
+      
+      if (savedUser && savedToken) {
+        try {
+          // Verify token is still valid
+          const { user: userData } = await authAPI.getMe();
+          setUser(userData);
+          localStorage.setItem('hydrolify_user', JSON.stringify(userData));
+        } catch (error) {
+          // Token expired or invalid
+          localStorage.removeItem('hydrolify_user');
+          localStorage.removeItem('hydrolify_token');
+        }
+      }
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   /**
-   * Login function - validates credentials against mock data
+   * Login function
    * @param {string} email - User email
    * @param {string} password - User password
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   const login = async (email, password) => {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const foundUser = mockUsers.find(
-      (u) => u.email === email && u.password === password
-    );
-
-    if (foundUser) {
-      const userData = {
-        id: foundUser.id,
-        email: foundUser.email,
-        name: foundUser.name,
-        storeName: foundUser.storeName,
-        storeId: foundUser.storeId,
-        storeSlug: foundUser.storeSlug,
-      };
+    try {
+      const { user: userData } = await authAPI.login(email, password);
       setUser(userData);
-      localStorage.setItem('shopify_clone_user', JSON.stringify(userData));
+      localStorage.setItem('hydrolify_user', JSON.stringify(userData));
       return { success: true, user: userData };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
-
-    return { success: false, error: 'Invalid email or password' };
   };
 
   /**
@@ -87,50 +58,22 @@ export function AuthProvider({ children }) {
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   const register = async ({ name, email, password, storeName }) => {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Check if email already exists
-    const existingUser = mockUsers.find((u) => u.email === email);
-    if (existingUser) {
-      return { success: false, error: 'Email already registered' };
+    try {
+      const { user: userData } = await authAPI.register(name, email, password, storeName);
+      setUser(userData);
+      localStorage.setItem('hydrolify_user', JSON.stringify(userData));
+      return { success: true, user: userData, isNewStore: true };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
-
-    // Generate store slug from store name
-    const storeSlug = storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const newStoreId = Math.max(...mockUsers.map(u => u.storeId || 0)) + 1;
-
-    // Create new user with store association (in a real app, this would be an API call)
-    const newUser = {
-      id: mockUsers.length + 1,
-      email,
-      password,
-      name,
-      storeName,
-      storeId: newStoreId,
-      storeSlug: storeSlug,
-    };
-    mockUsers.push(newUser);
-
-    const userData = {
-      id: newUser.id,
-      email: newUser.email,
-      name: newUser.name,
-      storeName: newUser.storeName,
-      storeId: newUser.storeId,
-      storeSlug: newUser.storeSlug,
-    };
-    setUser(userData);
-    localStorage.setItem('shopify_clone_user', JSON.stringify(userData));
-    return { success: true, user: userData, isNewStore: true };
   };
 
   /**
    * Logout function - clears user session
    */
   const logout = () => {
+    authAPI.logout();
     setUser(null);
-    localStorage.removeItem('shopify_clone_user');
   };
 
   const value = {

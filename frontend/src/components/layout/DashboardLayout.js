@@ -12,7 +12,6 @@ import {
   Bars3Icon,
   XMarkIcon,
   EyeIcon,
-  LinkIcon,
   GlobeAltIcon,
 } from '@heroicons/react/24/outline';
 

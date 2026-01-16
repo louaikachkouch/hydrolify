@@ -1,40 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useProducts } from '../../context/ProductsContext';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
-import { Button, Badge, Logo } from '../../components/ui';
+import { Button, Badge, Spinner } from '../../components/ui';
 import { companyBranding } from '../../data/mockData';
 import { getStoreUrl } from '../../utils/subdomain';
 import {
   ShoppingBagIcon,
   MagnifyingGlassIcon,
   ShoppingCartIcon,
-  ArrowLeftIcon,
+  XMarkIcon,
+  PlusIcon,
+  MinusIcon,
   HeartIcon,
   StarIcon,
   LinkIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
-import { ShoppingCartIcon as ShoppingCartSolidIcon } from '@heroicons/react/24/solid';
 
 /**
  * Storefront preview page - store owner's preview of their store
+ * Matches the public storefront design for accurate preview
  */
 export default function Storefront() {
-  const { user } = useAuth();
-  const { settings, currentStoreId } = useStore();
-  const { getProductsByStore } = useProducts();
+  useAuth(); // Auth context for protected route
+  const { settings } = useStore();
+  const { products, loadMyProducts, isLoading } = useProducts();
   
-  // Get current store's products
-  const storeId = currentStoreId || user?.storeId || 1;
-  const products = getProductsByStore(storeId);
+  // Load products on mount
+  useEffect(() => {
+    loadMyProducts();
+  }, [loadMyProducts]);
+
+  // Ensure products is an array
+  const productList = Array.isArray(products) ? products : [];
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Get active products only
-  const activeProducts = products.filter((p) => p.status === 'active');
+  const activeProducts = productList.filter((p) => p.status === 'active');
 
   // Get unique categories
   const categories = ['All', ...new Set(activeProducts.map((p) => p.category))];
@@ -49,13 +57,14 @@ export default function Storefront() {
     return matchesSearch && matchesCategory;
   });
 
-  // Add to cart
+  // Cart functions
   const addToCart = (product) => {
-    const existingItem = cart.find((item) => item.id === product.id);
+    const productId = product._id || product.id;
+    const existingItem = cart.find((item) => (item._id || item.id) === productId);
     if (existingItem) {
       setCart(
         cart.map((item) =>
-          item.id === product.id
+          (item._id || item.id) === productId
             ? { ...item, quantity: item.quantity + 1 }
             : item
         )
@@ -63,6 +72,22 @@ export default function Storefront() {
     } else {
       setCart([...cart, { ...product, quantity: 1 }]);
     }
+  };
+
+  const removeFromCart = (productId) => {
+    setCart(cart.filter((item) => (item._id || item.id) !== productId));
+  };
+
+  const updateQuantity = (productId, change) => {
+    setCart(
+      cart.map((item) => {
+        if ((item._id || item.id) === productId) {
+          const newQuantity = item.quantity + change;
+          return newQuantity > 0 ? { ...item, quantity: newQuantity } : item;
+        }
+        return item;
+      }).filter(item => item.quantity > 0)
+    );
   };
 
   // Calculate cart total
@@ -75,20 +100,41 @@ export default function Storefront() {
   // Get public store URL with subdomain
   const publicStoreUrl = settings.subdomain ? getStoreUrl(settings.subdomain) : null;
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Spinner size="lg" />
+          <p className="mt-4 text-secondary-600">Loading store preview...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Preview Banner */}
       <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <p className="text-sm text-yellow-800">
-              <span className="font-medium">Preview Mode</span> - This is how your store looks to customers
-            </p>
-            {settings.subdomain && (
-              <p className="text-xs text-yellow-600 font-mono mt-0.5">
-                {settings.subdomain}.hydrolify.vercel.app
+          <div className="flex items-center gap-4">
+            <Link
+              to="/dashboard"
+              className="flex items-center gap-2 text-sm text-yellow-700 hover:text-yellow-900"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Dashboard
+            </Link>
+            <div className="h-4 w-px bg-yellow-300" />
+            <div>
+              <p className="text-sm text-yellow-800">
+                <span className="font-medium">Preview Mode</span> - This is how your store looks to customers
               </p>
-            )}
+              {settings.subdomain && (
+                <p className="text-xs text-yellow-600 font-mono mt-0.5">
+                  hydrolify.vercel.app/store/{settings.subdomain}
+                </p>
+              )}
+            </div>
           </div>
           {publicStoreUrl && (
             <a
@@ -106,7 +152,7 @@ export default function Storefront() {
 
       {/* Header */}
       <header
-        className="sticky top-0 z-50 bg-white shadow-sm"
+        className="sticky top-0 z-40 bg-white shadow-sm"
         style={{ borderBottom: `3px solid ${settings.themeColor}` }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -133,33 +179,28 @@ export default function Storefront() {
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+                  style={{ '--tw-ring-color': settings.themeColor }}
                 />
               </div>
             </div>
 
             {/* Cart */}
             <div className="flex items-center gap-4">
-              <div className="relative">
-                <button className="p-2 text-secondary-600 hover:text-secondary-800">
-                  <ShoppingCartIcon className="h-6 w-6" />
-                  {cartCount > 0 && (
-                    <span
-                      className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-xs font-bold text-white rounded-full"
-                      style={{ backgroundColor: settings.themeColor }}
-                    >
-                      {cartCount}
-                    </span>
-                  )}
-                </button>
-              </div>
-              <Link
-                to="/dashboard"
-                className="flex items-center gap-2 text-sm text-secondary-600 hover:text-secondary-800"
+              <button
+                onClick={() => setIsCartOpen(true)}
+                className="relative p-2 text-secondary-600 hover:text-secondary-800"
               >
-                <ArrowLeftIcon className="h-4 w-4" />
-                Back to Dashboard
-              </Link>
+                <ShoppingCartIcon className="h-6 w-6" />
+                {cartCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-xs font-bold text-white rounded-full"
+                    style={{ backgroundColor: settings.themeColor }}
+                  >
+                    {cartCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -175,8 +216,7 @@ export default function Storefront() {
             Welcome to {settings.storeName}
           </h1>
           <p className="text-lg opacity-90 mb-8 max-w-2xl mx-auto">
-            Discover amazing products at unbeatable prices. Shop now and enjoy
-            free shipping on orders over $50!
+            {settings.description || 'Discover amazing products at great prices!'}
           </p>
           <Button
             variant="secondary"
@@ -197,6 +237,20 @@ export default function Storefront() {
           </svg>
         </div>
       </section>
+
+      {/* Mobile Search */}
+      <div className="sm:hidden px-4 py-3 bg-white border-b border-gray-100">
+        <div className="relative">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-secondary-400" />
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+          />
+        </div>
+      </div>
 
       {/* Categories */}
       <section className="py-8 bg-white border-b border-gray-100">
@@ -241,87 +295,97 @@ export default function Storefront() {
 
           {filteredProducts.length === 0 ? (
             <div className="text-center py-16">
-              <ShoppingCartSolidIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-secondary-800">
+              <ShoppingBagIcon className="h-16 w-16 text-secondary-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-secondary-800 mb-2">
                 No products found
               </h3>
-              <p className="text-secondary-500 mt-2">
-                Try adjusting your search or filter
+              <p className="text-secondary-500">
+                {searchQuery
+                  ? `No products match "${searchQuery}"`
+                  : 'Add some products from your dashboard!'}
               </p>
+              <Link to="/dashboard/products">
+                <Button className="mt-4" style={{ backgroundColor: settings.themeColor }}>
+                  Add Products
+                </Button>
+              </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredProducts.map((product) => (
                 <div
-                  key={product.id}
-                  className="bg-white rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 overflow-hidden group"
+                  key={product._id || product.id}
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow group"
                 >
                   {/* Product Image */}
-                  <div className="relative aspect-square overflow-hidden">
+                  <div className="relative aspect-square overflow-hidden bg-gray-100">
                     <img
                       src={product.image}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    {/* Sale Badge */}
                     {product.compareAtPrice && (
-                      <div className="absolute top-3 left-3">
-                        <Badge variant="danger">Sale</Badge>
-                      </div>
-                    )}
-                    {/* Wishlist Button */}
-                    <button className="absolute top-3 right-3 p-2 bg-white/80 backdrop-blur-sm rounded-full text-secondary-400 hover:text-red-500 transition-colors">
-                      <HeartIcon className="h-5 w-5" />
-                    </button>
-                    {/* Quick Add */}
-                    <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => addToCart(product)}
-                        className="w-full py-2 bg-white text-secondary-800 rounded-lg font-medium text-sm hover:bg-gray-100 transition-colors"
+                      <Badge
+                        variant="error"
+                        className="absolute top-3 left-3"
                       >
-                        Add to Cart
-                      </button>
-                    </div>
+                        Sale
+                      </Badge>
+                    )}
+                    <button className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
+                      <HeartIcon className="h-5 w-5 text-secondary-400 hover:text-red-500" />
+                    </button>
                   </div>
 
                   {/* Product Info */}
                   <div className="p-4">
-                    <p className="text-xs text-secondary-500 mb-1">
+                    <p className="text-xs text-secondary-400 mb-1">
                       {product.category}
                     </p>
-                    <h3 className="font-medium text-secondary-800 mb-2 line-clamp-1">
+                    <h3 className="font-semibold text-secondary-800 mb-2 line-clamp-2">
                       {product.name}
                     </h3>
-                    {/* Rating */}
-                    <div className="flex items-center gap-1 mb-2">
+
+                    {/* Rating (placeholder) */}
+                    <div className="flex items-center gap-1 mb-3">
                       {[...Array(5)].map((_, i) => (
                         <StarIcon
                           key={i}
-                          className="h-4 w-4"
-                          style={{
-                            fill: i < 4 ? settings.themeColor : 'none',
-                            stroke: settings.themeColor,
-                          }}
+                          className={`h-4 w-4 ${
+                            i < 4 ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                          }`}
                         />
                       ))}
-                      <span className="text-xs text-secondary-500 ml-1">
-                        (24)
+                      <span className="text-xs text-secondary-400 ml-1">
+                        (4.0)
                       </span>
                     </div>
-                    {/* Price */}
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="text-lg font-bold"
-                        style={{ color: settings.themeColor }}
-                      >
-                        {product.price.toFixed(2)} TND
-                      </span>
-                      {product.compareAtPrice && (
-                        <span className="text-sm text-secondary-400 line-through">
-                          {product.compareAtPrice.toFixed(2)} TND
+
+                    {/* Price & Add to Cart */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-lg font-bold"
+                          style={{ color: settings.themeColor }}
+                        >
+                          {product.price.toFixed(2)} TND
                         </span>
-                      )}
+                        {product.compareAtPrice && (
+                          <span className="text-sm text-secondary-400 line-through">
+                            {product.compareAtPrice.toFixed(2)} TND
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    <Button
+                      onClick={() => addToCart(product)}
+                      className="w-full mt-3"
+                      size="sm"
+                      style={{ backgroundColor: settings.themeColor }}
+                    >
+                      Add to Cart
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -330,83 +394,160 @@ export default function Storefront() {
         </div>
       </section>
 
-      {/* Cart Summary (if items in cart) */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-6 right-6 z-50">
+      {/* Store Info Footer */}
+      <footer className="bg-white border-t border-gray-200 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Store Info */}
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: settings.themeColor }}
+                >
+                  <ShoppingBagIcon className="h-5 w-5 text-white" />
+                </div>
+                <span className="font-bold text-secondary-800">{settings.storeName}</span>
+              </div>
+              <p className="text-sm text-secondary-600">{settings.description}</p>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 className="font-semibold text-secondary-800 mb-4">Contact</h4>
+              <div className="space-y-2 text-sm text-secondary-600">
+                <p>{settings.storeEmail}</p>
+                <p>{settings.storePhone}</p>
+                <p>{settings.storeAddress}</p>
+              </div>
+            </div>
+
+            {/* Powered By */}
+            <div>
+              <h4 className="font-semibold text-secondary-800 mb-4">Powered by</h4>
+              <p className="text-sm text-secondary-600">
+                {companyBranding.name} - {companyBranding.tagline}
+              </p>
+              <Link
+                to="/"
+                className="text-sm text-primary-600 hover:text-primary-700 mt-2 inline-block"
+              >
+                Create your own store →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* Cart Sidebar */}
+      {isCartOpen && (
+        <div className="fixed inset-0 z-50">
+          {/* Overlay */}
           <div
-            className="bg-white rounded-2xl shadow-xl p-4 border-2"
-            style={{ borderColor: settings.themeColor }}
-          >
-            <div className="flex items-center gap-4">
-              <div
-                className="flex items-center justify-center w-12 h-12 rounded-xl"
-                style={{ backgroundColor: settings.themeColor }}
-              >
-                <ShoppingCartSolidIcon className="h-6 w-6 text-white" />
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setIsCartOpen(false)}
+          />
+
+          {/* Cart Panel */}
+          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl">
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-secondary-800">
+                  Shopping Cart ({cartCount})
+                </h2>
+                <button
+                  onClick={() => setIsCartOpen(false)}
+                  className="p-2 text-secondary-400 hover:text-secondary-600"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
               </div>
-              <div>
-                <p className="text-sm text-secondary-500">Cart Total</p>
-                <p className="text-lg font-bold text-secondary-800">
-                  {cartTotal.toFixed(2)} TND
-                </p>
+
+              {/* Cart Items */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {cart.length === 0 ? (
+                  <div className="text-center py-12">
+                    <ShoppingCartIcon className="h-16 w-16 text-secondary-300 mx-auto mb-4" />
+                    <p className="text-secondary-500">Your cart is empty</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {cart.map((item) => (
+                      <div
+                        key={item._id || item.id}
+                        className="flex gap-4 p-3 bg-gray-50 rounded-lg"
+                      >
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-20 h-20 object-cover rounded-lg"
+                        />
+                        <div className="flex-1">
+                          <h4 className="font-medium text-secondary-800 text-sm">
+                            {item.name}
+                          </h4>
+                          <p
+                            className="font-semibold mt-1"
+                            style={{ color: settings.themeColor }}
+                          >
+                            {item.price.toFixed(2)} TND
+                          </p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <button
+                              onClick={() => updateQuantity(item._id || item.id, -1)}
+                              className="p-1 rounded-md bg-white border border-gray-200 hover:bg-gray-100"
+                            >
+                              <MinusIcon className="h-4 w-4" />
+                            </button>
+                            <span className="text-sm font-medium w-8 text-center">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => updateQuantity(item._id || item.id, 1)}
+                              className="p-1 rounded-md bg-white border border-gray-200 hover:bg-gray-100"
+                            >
+                              <PlusIcon className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => removeFromCart(item._id || item.id)}
+                              className="ml-auto text-xs text-red-500 hover:text-red-600"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <Button
-                size="sm"
-                style={{ backgroundColor: settings.themeColor }}
-              >
-                Checkout ({cartCount})
-              </Button>
+
+              {/* Footer */}
+              {cart.length > 0 && (
+                <div className="border-t border-gray-200 p-4 space-y-4">
+                  <div className="flex items-center justify-between text-lg">
+                    <span className="font-medium text-secondary-600">Total</span>
+                    <span
+                      className="font-bold"
+                      style={{ color: settings.themeColor }}
+                    >
+                      {cartTotal.toFixed(2)} TND
+                    </span>
+                  </div>
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    style={{ backgroundColor: settings.themeColor }}
+                  >
+                    Proceed to Checkout
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
-
-      {/* Footer */}
-      <footer className="bg-secondary-800 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div className="md:col-span-2">
-              
-              <div className="flex items-center gap-3">
-              <div
-                className="flex items-center justify-center w-10 h-10 rounded-lg"
-                style={{ backgroundColor: settings.themeColor }}
-              >
-                <ShoppingBagIcon className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-xl font-bold text-800">
-                {settings.storeName}
-              </span>
-            </div>
-
-              <p className="text-secondary-400 max-w-sm mt-4">
-                Your one-stop shop for amazing products. Quality, affordability,
-                and convenience all in one place.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Quick Links</h4>
-              <ul className="space-y-2 text-secondary-400">
-                <li><button className="hover:text-white transition-colors">About Us</button></li>
-                <li><button className="hover:text-white transition-colors">Contact</button></li>
-                <li><button className="hover:text-white transition-colors">FAQs</button></li>
-                <li><button className="hover:text-white transition-colors">Shipping</button></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Contact</h4>
-              <ul className="space-y-2 text-secondary-400">
-                <li>{settings.storeEmail}</li>
-                <li>{settings.storePhone}</li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-secondary-700 mt-8 pt-8 text-center text-secondary-400">
-            <p>&copy; 2026 {settings.storeName}. All rights reserved.</p>
-            <p className="text-xs mt-2">Powered by {companyBranding.name} - {companyBranding.tagline}</p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

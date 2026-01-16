@@ -16,7 +16,7 @@ import {
   HeartIcon,
   StarIcon,
 } from '@heroicons/react/24/outline';
-import { ShoppingCartIcon as ShoppingCartSolidIcon } from '@heroicons/react/24/solid';
+// ShoppingCartSolidIcon available from '@heroicons/react/24/solid' if needed
 
 /**
  * Public Storefront - Customer-facing view accessible via subdomain or /store/:storeSlug
@@ -26,7 +26,7 @@ export default function PublicStorefront() {
   const { storeSlug } = useParams();
   const { getStoreBySlug, getStoreBySubdomain, getActiveStores } = useStore();
   const { getProductsByStore } = useProducts();
-  const { addOrder } = useOrders();
+  useOrders(); // Orders context available for cart functionality
 
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
@@ -40,42 +40,47 @@ export default function PublicStorefront() {
 
   // Load store data based on subdomain or slug
   useEffect(() => {
-    const loadStore = () => {
+    const loadStore = async () => {
       setIsLoading(true);
       
-      // Simulate API delay
-      setTimeout(() => {
+      try {
         let foundStore = null;
         
         // First, check for subdomain
         const subdomain = getSubdomain();
         if (subdomain) {
-          foundStore = getStoreBySubdomain(subdomain);
+          foundStore = await getStoreBySubdomain(subdomain);
         }
         
         // Fall back to URL slug if no subdomain match
         if (!foundStore && storeSlug) {
-          foundStore = getStoreBySlug(storeSlug);
+          foundStore = await getStoreBySlug(storeSlug);
         }
         
         if (foundStore) {
           setStore(foundStore);
-          const storeProducts = getProductsByStore(foundStore.id);
-          setProducts(storeProducts);
+          const storeProducts = await getProductsByStore(foundStore._id || foundStore.id);
+          setProducts(Array.isArray(storeProducts) ? storeProducts : []);
           setNotFound(false);
         } else {
           setNotFound(true);
         }
-        
+      } catch (error) {
+        console.error('Error loading store:', error);
+        setNotFound(true);
+      } finally {
         setIsLoading(false);
-      }, 300);
+      }
     };
 
     loadStore();
   }, [storeSlug, getStoreBySlug, getStoreBySubdomain, getProductsByStore]);
 
+  // Ensure products is always an array before filtering
+  const productList = Array.isArray(products) ? products : [];
+
   // Get active products only
-  const activeProducts = products.filter((p) => p.status === 'active');
+  const activeProducts = productList.filter((p) => p.status === 'active');
 
   // Get unique categories
   const categories = ['All', ...new Set(activeProducts.map((p) => p.category))];

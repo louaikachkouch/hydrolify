@@ -1,7 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProducts } from '../../context/ProductsContext';
-import { useStore } from '../../context/StoreContext';
-import { useAuth } from '../../context/AuthContext';
 import {
   Button,
   Card,
@@ -18,6 +16,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  Spinner,
 } from '../../components/ui';
 import {
   PlusIcon,
@@ -31,13 +30,15 @@ import { productCategories } from '../../data/mockData';
  * Products page with full CRUD functionality
  */
 export default function Products() {
-  const { user } = useAuth();
-  const { currentStoreId } = useStore();
-  const { getProductsByStore, addProduct, updateProduct, deleteProduct } = useProducts();
+  const { products, loadMyProducts, addProduct, updateProduct, deleteProduct, isLoading: contextLoading } = useProducts();
   
-  // Get current store's products
-  const storeId = currentStoreId || user?.storeId || 1;
-  const products = getProductsByStore(storeId);
+  // Load products on mount
+  useEffect(() => {
+    loadMyProducts();
+  }, [loadMyProducts]);
+
+  // Ensure products is an array
+  const productList = Array.isArray(products) ? products : [];
   
   // State for modals and forms
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -74,7 +75,7 @@ export default function Products() {
   ];
 
   // Filter products by search query
-  const filteredProducts = products.filter(
+  const filteredProducts = productList.filter(
     (product) =>
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.category.toLowerCase().includes(searchQuery.toLowerCase())
@@ -166,9 +167,9 @@ export default function Products() {
     };
 
     if (editingProduct) {
-      updateProduct(editingProduct.id, productData);
+      updateProduct(editingProduct._id || editingProduct.id, productData);
     } else {
-      addProduct(productData, storeId);
+      addProduct(productData);
     }
 
     setIsLoading(false);
@@ -229,6 +230,11 @@ export default function Products() {
       </Card>
 
       {/* Products Table */}
+      {contextLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Spinner size="lg" />
+        </div>
+      ) : (
       <Card noPadding>
         <Table>
           <TableHeader>
@@ -250,7 +256,7 @@ export default function Products() {
               </TableRow>
             ) : (
               filteredProducts.map((product) => (
-                <TableRow key={product.id}>
+                <TableRow key={product._id || product.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <img
@@ -323,6 +329,7 @@ export default function Products() {
           </TableBody>
         </Table>
       </Card>
+      )}
 
       {/* Add/Edit Product Modal */}
       <Modal

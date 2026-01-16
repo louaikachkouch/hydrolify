@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { mockOrders as initialOrders } from '../data/mockData';
+import { ordersAPI } from '../services/api';
 
 // Create the Orders Context
 const OrdersContext = createContext(null);
@@ -8,11 +8,44 @@ const OrdersContext = createContext(null);
  * OrdersProvider component that manages orders state (multi-tenant)
  */
 export function OrdersProvider({ children }) {
-  const [allOrders, setAllOrders] = useState(initialOrders);
+  const [allOrders, setAllOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [dashboardStats, setDashboardStats] = useState(null);
 
   /**
-   * Get orders for a specific store
-   * @param {number} storeId - Store ID
+   * Load orders for current user's store
+   */
+  const loadMyOrders = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const orders = await ordersAPI.getMyOrders();
+      setAllOrders(orders);
+      return orders;
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  /**
+   * Load dashboard statistics
+   */
+  const loadDashboardStats = useCallback(async () => {
+    try {
+      const stats = await ordersAPI.getDashboardStats();
+      setDashboardStats(stats);
+      return stats;
+    } catch (error) {
+      console.error('Failed to load dashboard stats:', error);
+      return null;
+    }
+  }, []);
+
+  /**
+   * Get orders by store from local state (for backward compatibility)
+   * @param {string} storeId - Store ID
    * @returns {Array} Orders for the store
    */
   const getOrdersByStore = useCallback((storeId) => {
@@ -24,54 +57,74 @@ export function OrdersProvider({ children }) {
    * @param {string} orderId - Order ID
    * @param {string} status - New status
    */
-  const updateOrderStatus = (orderId, status) => {
-    setAllOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId ? { ...order, status } : order
-      )
-    );
-  };
+  const updateOrderStatus = useCallback(async (orderId, status) => {
+    try {
+      const updatedOrder = await ordersAPI.updateStatus(orderId, status);
+      setAllOrders((prev) =>
+        prev.map((order) =>
+          order._id === orderId ? updatedOrder : order
+        )
+      );
+      return { success: true, order: updatedOrder };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, []);
 
   /**
-   * Get an order by ID
+   * Update payment status
+   * @param {string} orderId - Order ID
+   * @param {string} paymentStatus - New payment status
+   */
+  const updatePaymentStatus = useCallback(async (orderId, paymentStatus) => {
+    try {
+      const updatedOrder = await ordersAPI.updatePaymentStatus(orderId, paymentStatus);
+      setAllOrders((prev) =>
+        prev.map((order) =>
+          order._id === orderId ? updatedOrder : order
+        )
+      );
+      return { success: true, order: updatedOrder };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  /**
+   * Get an order by ID from local state
    * @param {string} orderId - Order ID
    * @returns {Object|undefined} Order object
    */
-  const getOrder = (orderId) => {
-    return allOrders.find((order) => order.id === orderId);
-  };
+  const getOrder = useCallback((orderId) => {
+    return allOrders.find((order) => order._id === orderId || order.orderId === orderId);
+  }, [allOrders]);
 
   /**
-   * Get orders by status (optionally filtered by store)
+   * Get orders by status from local state
    * @param {string} status - Order status
-   * @param {number} storeId - Optional store ID
    * @returns {Array} Filtered orders
    */
-  const getOrdersByStatus = (status, storeId = null) => {
-    let filtered = allOrders.filter((order) => order.status === status);
-    if (storeId) {
-      filtered = filtered.filter(o => o.storeId === storeId);
-    }
-    return filtered;
-  };
+  const getOrdersByStatus = useCallback((status) => {
+    return allOrders.filter((order) => order.status === status);
+  }, [allOrders]);
 
   /**
-   * Add a new order
+   * Add a new order (for storefront checkout)
    * @param {Object} orderData - Order data
-   * @param {number} storeId - Store ID
+   * @param {string} storeId - Store ID
    */
-  const addOrder = (orderData, storeId) => {
-    const newOrder = {
-      ...orderData,
-      id: `ORD-${storeId}${String(allOrders.length + 1).padStart(3, '0')}`,
-      storeId: storeId,
-      createdAt: new Date().toISOString(),
-      status: 'pending',
-      paymentStatus: 'pending',
-    };
-    setAllOrders((prev) => [...prev, newOrder]);
-    return newOrder;
-  };
+  const addOrder = useCallback(async (orderData, storeId) => {
+    try {
+      const newOrder = await ordersAPI.create({
+        ...orderData,
+        storeId,
+      });
+      setAllOrders((prev) => [newOrder, ...prev]);
+      return { success: true, order: newOrder };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, []);
 
   // Backward compatible - returns all orders
   const orders = allOrders;
@@ -79,8 +132,13 @@ export function OrdersProvider({ children }) {
   const value = {
     orders,
     allOrders,
+    isLoading,
+    dashboardStats,
+    loadMyOrders,
+    loadDashboardStats,
     getOrdersByStore,
     updateOrderStatus,
+    updatePaymentStatus,
     getOrder,
     getOrdersByStatus,
     addOrder,

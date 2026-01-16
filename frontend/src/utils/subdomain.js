@@ -1,5 +1,5 @@
 /**
- * Subdomain utilities for multi-tenant store routing
+ * Subdomain/URL utilities for multi-tenant store routing
  */
 
 // Base domain for the application
@@ -7,10 +7,18 @@ const BASE_DOMAIN = 'hydrolify.vercel.app';
 const LOCAL_DOMAINS = ['localhost', '127.0.0.1'];
 
 /**
+ * Check if custom domain with wildcard subdomains is configured
+ * Set this to true when using a custom domain with wildcard DNS
+ */
+const USE_SUBDOMAINS = false;
+
+/**
  * Get the current subdomain from the hostname
  * @returns {string|null} The subdomain or null if on main domain
  */
 export function getSubdomain() {
+  if (!USE_SUBDOMAINS) return null;
+  
   const hostname = window.location.hostname;
   
   // Check if we're on localhost (development)
@@ -50,22 +58,40 @@ export function isStoreSubdomain() {
 }
 
 /**
- * Generate the full store URL with subdomain
- * @param {string} subdomain - The store's subdomain
+ * Generate the full store URL
+ * @param {string} slug - The store's slug/subdomain
  * @returns {string} The full URL
  */
-export function getStoreUrl(subdomain) {
+export function getStoreUrl(slug) {
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
+  const port = window.location.port ? `:${window.location.port}` : '';
   
-  // Development mode
+  // Development mode - always use path-based
   if (LOCAL_DOMAINS.some(domain => hostname.includes(domain))) {
-    const port = window.location.port ? `:${window.location.port}` : '';
-    return `${protocol}//${hostname}${port}?subdomain=${subdomain}`;
+    return `${protocol}//${hostname}${port}/store/${slug}`;
   }
   
   // Production mode
-  return `${protocol}//${subdomain}.${BASE_DOMAIN}`;
+  if (USE_SUBDOMAINS) {
+    // Subdomain mode (requires custom domain with wildcard DNS)
+    return `${protocol}//${slug}.${BASE_DOMAIN}`;
+  } else {
+    // Path-based mode (works with Vercel free tier)
+    return `${protocol}//${BASE_DOMAIN}/store/${slug}`;
+  }
+}
+
+/**
+ * Get the display URL (for showing to users)
+ * @param {string} slug - The store's slug
+ * @returns {string} The display URL
+ */
+export function getDisplayUrl(slug) {
+  if (USE_SUBDOMAINS) {
+    return `${slug}.hydrolify.vercel.app`;
+  }
+  return `hydrolify.vercel.app/store/${slug}`;
 }
 
 /**

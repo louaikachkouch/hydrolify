@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useProducts } from '../../context/ProductsContext';
 import { useOrders } from '../../context/OrdersContext';
-import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
-import { Card, CardTitle } from '../../components/ui';
+import { Card, CardTitle, Spinner } from '../../components/ui';
 import {
   CurrencyDollarIcon,
   ShoppingCartIcon,
@@ -19,17 +18,23 @@ import { mockDashboardStats } from '../../data/mockData';
  */
 export default function Dashboard() {
   const { user } = useAuth();
-  const { currentStoreId } = useStore();
-  const { getProductsByStore } = useProducts();
-  const { getOrdersByStore } = useOrders();
+  const { products, loadMyProducts, isLoading: productsLoading } = useProducts();
+  const { allOrders, loadMyOrders, isLoading: ordersLoading } = useOrders();
 
-  // Get current store's products and orders
-  const storeId = currentStoreId || user?.storeId || 1;
-  const products = getProductsByStore(storeId);
-  const orders = getOrdersByStore(storeId);
+  // Load data on mount
+  useEffect(() => {
+    loadMyProducts();
+    loadMyOrders();
+  }, [loadMyProducts, loadMyOrders]);
+
+  const isLoading = productsLoading || ordersLoading;
+
+  // Ensure products and orders are arrays
+  const productList = Array.isArray(products) ? products : [];
+  const orderList = Array.isArray(allOrders) ? allOrders : [];
 
   // Calculate total sales from orders
-  const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
+  const totalSales = orderList.reduce((sum, order) => sum + (order.total || 0), 0);
 
   // Calculate stats
   const stats = [
@@ -42,21 +47,21 @@ export default function Dashboard() {
     },
     {
       name: 'Total Orders',
-      value: orders.length,
+      value: orderList.length,
       change: mockDashboardStats.ordersGrowth,
       icon: ShoppingCartIcon,
       color: 'bg-blue-500',
     },
     {
       name: 'Products',
-      value: products.length,
+      value: productList.length,
       change: null,
       icon: CubeIcon,
       color: 'bg-purple-500',
     },
     {
       name: 'Customers',
-      value: new Set(orders.map(o => o.customer.email)).size,
+      value: new Set(orderList.map(o => o.customer?.email).filter(Boolean)).size,
       change: 5.2,
       icon: UserGroupIcon,
       color: 'bg-orange-500',
@@ -64,7 +69,7 @@ export default function Dashboard() {
   ];
 
   // Recent orders for display
-  const recentOrders = orders.slice(0, 5);
+  const recentOrders = orderList.slice(0, 5);
 
   // Status colors for badges
   const getStatusColor = (status) => {
@@ -83,11 +88,17 @@ export default function Dashboard() {
       <div>
         <h1 className="text-2xl font-bold text-secondary-800">Dashboard</h1>
         <p className="text-secondary-500 mt-1">
-          Welcome back! Here's an overview of your store.
+          Welcome back, {user?.name || 'there'}! Here's an overview of your store.
         </p>
       </div>
 
-      {/* Stats Grid */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Spinner size="lg" />
+        </div>
+      ) : (
+        <>
+          {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <Card key={stat.name} className="relative overflow-hidden">
@@ -135,7 +146,7 @@ export default function Dashboard() {
           <div className="mt-4 space-y-4">
             {recentOrders.map((order) => (
               <div
-                key={order.id}
+                key={order._id || order.id}
                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
               >
                 <div className="flex items-center gap-3">
@@ -144,27 +155,30 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-secondary-800">
-                      {order.id}
+                      {order.orderId || order._id?.slice(-8)}
                     </p>
                     <p className="text-xs text-secondary-500">
-                      {order.customer.name}
+                      {order.customer?.name || 'Customer'}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-secondary-800">
-                    {order.total.toFixed(2)} TND
+                    {(order.total || 0).toFixed(2)} TND
                   </p>
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
                       order.status
                     )}`}
                   >
-                    {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                    {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
                   </span>
                 </div>
               </div>
             ))}
+            {recentOrders.length === 0 && (
+              <p className="text-secondary-500 text-center py-4">No orders yet</p>
+            )}
           </div>
         </Card>
 
@@ -172,9 +186,9 @@ export default function Dashboard() {
         <Card>
           <CardTitle>Top Products</CardTitle>
           <div className="mt-4 space-y-4">
-            {products.slice(0, 5).map((product) => (
+            {productList.slice(0, 5).map((product) => (
               <div
-                key={product.id}
+                key={product._id || product.id}
                 className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
               >
                 <img
@@ -191,10 +205,13 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <p className="text-sm font-semibold text-secondary-800">
-                  {product.price.toFixed(2)} TND
+                  {(product.price || 0).toFixed(2)} TND
                 </p>
               </div>
             ))}
+            {productList.length === 0 && (
+              <p className="text-secondary-500 text-center py-4">No products yet</p>
+            )}
           </div>
         </Card>
       </div>
@@ -225,6 +242,8 @@ export default function Dashboard() {
           </div>
         </div>
       </Card>
+        </>
+      )}
     </div>
   );
 }

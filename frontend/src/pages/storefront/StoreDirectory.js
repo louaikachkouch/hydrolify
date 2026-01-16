@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useProducts } from '../../context/ProductsContext';
 import { companyBranding } from '../../data/mockData';
 import { getStoreUrl } from '../../utils/subdomain';
-import { Button } from '../../components/ui';
+import { Button, Spinner } from '../../components/ui';
 import {
   ShoppingBagIcon,
   ArrowRightIcon,
@@ -15,11 +15,108 @@ import {
 } from '@heroicons/react/24/outline';
 
 /**
+ * Individual Store Card component that loads its own products
+ */
+function StoreCard({ store }) {
+  const { getProductsByStore } = useProducts();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const storeProducts = await getProductsByStore(store._id || store.id);
+        const activeProducts = Array.isArray(storeProducts) 
+          ? storeProducts.filter(p => p.status === 'active')
+          : [];
+        setProducts(activeProducts);
+      } catch (error) {
+        console.error('Failed to load products for store:', store._id, error);
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProducts();
+  }, [store._id, store.id, getProductsByStore]);
+
+  return (
+    <a
+      href={getStoreUrl(store.subdomain)}
+      className="group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300"
+    >
+      {/* Store Banner */}
+      <div
+        className="h-32 relative"
+        style={{ backgroundColor: store.themeColor }}
+      >
+        <div className="absolute inset-0 bg-black/10" />
+        <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 bg-white rounded-xl shadow-lg flex items-center justify-center">
+              <ShoppingBagIcon
+                className="h-7 w-7"
+                style={{ color: store.themeColor }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Store Info */}
+      <div className="p-5">
+        <h3 className="text-lg font-bold text-secondary-800 mb-1 group-hover:text-primary-600 transition-colors">
+          {store.storeName}
+        </h3>
+        <p className="text-xs text-secondary-400 font-mono mb-2">
+          hydrolify.vercel.app/store/{store.subdomain}
+        </p>
+        <p className="text-sm text-secondary-500 mb-4 line-clamp-2">
+          {store.description || 'Discover amazing products at great prices'}
+        </p>
+
+        {/* Stats */}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-secondary-400">
+            {loading ? '...' : `${products.length} product${products.length !== 1 ? 's' : ''}`}
+          </span>
+          <span
+            className="font-medium flex items-center gap-1 group-hover:gap-2 transition-all"
+            style={{ color: store.themeColor }}
+          >
+            Visit Store
+            <ArrowRightIcon className="h-4 w-4" />
+          </span>
+        </div>
+
+        {/* Product Preview */}
+        {!loading && products.length > 0 && (
+          <div className="mt-4 flex -space-x-2">
+            {products.slice(0, 4).map((product) => (
+              <img
+                key={product._id || product.id}
+                src={product.image}
+                alt={product.name}
+                className="w-10 h-10 rounded-lg border-2 border-white object-cover"
+              />
+            ))}
+            {products.length > 4 && (
+              <div className="w-10 h-10 rounded-lg border-2 border-white bg-gray-100 flex items-center justify-center text-xs font-medium text-secondary-500">
+                +{products.length - 4}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </a>
+  );
+}
+
+/**
  * Store Directory - Landing page showing all available stores
  */
 export default function StoreDirectory() {
-  const { getActiveStores } = useStore();
-  const { getProductsByStore } = useProducts();
+  const { getActiveStores, isLoading } = useStore();
   
   const stores = getActiveStores();
 
@@ -108,85 +205,18 @@ export default function StoreDirectory() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {stores.map((store) => {
-              const storeProducts = getProductsByStore(store.id);
-              const activeProducts = storeProducts.filter(p => p.status === 'active');
-              
-              return (
-                <a
-                  key={store.id}
-                  href={getStoreUrl(store.subdomain)}
-                  className="group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300"
-                >
-                  {/* Store Banner */}
-                  <div
-                    className="h-32 relative"
-                    style={{ backgroundColor: store.themeColor }}
-                  >
-                    <div className="absolute inset-0 bg-black/10" />
-                    <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 bg-white rounded-xl shadow-lg flex items-center justify-center">
-                          <ShoppingBagIcon
-                            className="h-7 w-7"
-                            style={{ color: store.themeColor }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Store Info */}
-                  <div className="p-5">
-                    <h3 className="text-lg font-bold text-secondary-800 mb-1 group-hover:text-primary-600 transition-colors">
-                      {store.storeName}
-                    </h3>
-                    <p className="text-xs text-secondary-400 font-mono mb-2">
-                      {store.subdomain}.hydrolify.vercel.app
-                    </p>
-                    <p className="text-sm text-secondary-500 mb-4 line-clamp-2">
-                      {store.description || 'Discover amazing products at great prices'}
-                    </p>
-
-                    {/* Stats */}
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-secondary-400">
-                        {activeProducts.length} product{activeProducts.length !== 1 ? 's' : ''}
-                      </span>
-                      <span
-                        className="font-medium flex items-center gap-1 group-hover:gap-2 transition-all"
-                        style={{ color: store.themeColor }}
-                      >
-                        Visit Store
-                        <ArrowRightIcon className="h-4 w-4" />
-                      </span>
-                    </div>
-
-                    {/* Product Preview */}
-                    {activeProducts.length > 0 && (
-                      <div className="mt-4 flex -space-x-2">
-                        {activeProducts.slice(0, 4).map((product) => (
-                          <img
-                            key={product.id}
-                            src={product.image}
-                            alt={product.name}
-                            className="w-10 h-10 rounded-lg border-2 border-white object-cover"
-                          />
-                        ))}
-                        {activeProducts.length > 4 && (
-                          <div className="w-10 h-10 rounded-lg border-2 border-white bg-gray-100 flex items-center justify-center text-xs font-medium text-secondary-500">
-                            +{activeProducts.length - 4}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </a>
-              );
-            })}
+            {isLoading ? (
+              <div className="col-span-full flex justify-center py-12">
+                <Spinner size="lg" />
+              </div>
+            ) : (
+              stores.map((store) => (
+                <StoreCard key={store._id || store.id} store={store} />
+              ))
+            )}
           </div>
 
-          {stores.length === 0 && (
+          {!isLoading && stores.length === 0 && (
             <div className="text-center py-16">
               <ShoppingBagIcon className="h-16 w-16 text-secondary-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-secondary-800 mb-2">
@@ -238,8 +268,8 @@ export default function StoreDirectory() {
               © 2026 {companyBranding.name}. All rights reserved.
             </p>
             <div className="flex items-center gap-6 text-sm">
-              <a href="#" className="hover:text-white transition-colors">Privacy</a>
-              <a href="#" className="hover:text-white transition-colors">Terms</a>
+              <button type="button" className="hover:text-white transition-colors">Privacy</button>
+              <button type="button" className="hover:text-white transition-colors">Terms</button>
               <a href={`mailto:${companyBranding.supportEmail}`} className="hover:text-white transition-colors">
                 Support
               </a>
