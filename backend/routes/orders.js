@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Store = require('../models/Store');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -53,7 +54,13 @@ router.post('/', [
     // Calculate total
     const total = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+    // Generate unique order ID
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const orderId = `ORD-${timestamp}-${randomPart}`;
+
     const order = new Order({
+      orderId,
       storeId,
       customer,
       items,
@@ -101,8 +108,20 @@ router.put('/:id/status', auth, [
       return res.status(404).json({ error: 'Order not found' });
     }
 
+    const previousStatus = order.status;
     order.status = req.body.status;
     await order.save();
+
+    // Recalculate and save totalSales if status changed to/from delivered
+    if (previousStatus !== req.body.status && 
+        (previousStatus === 'delivered' || req.body.status === 'delivered')) {
+      const allOrders = await Order.find({ storeId: req.user.storeId });
+      const totalSales = allOrders
+        .filter(o => o.status === 'delivered')
+        .reduce((sum, o) => sum + o.total, 0);
+      
+      await Store.findByIdAndUpdate(req.user.storeId, { totalSales });
+    }
 
     res.json(order);
   } catch (error) {
@@ -144,14 +163,22 @@ router.get('/stats/dashboard', auth, async (req, res) => {
   try {
     const storeId = req.user.storeId;
 
-    const [orders, products] = await Promise.all([
+    const [orders, products, store] = await Promise.all([
       Order.find({ storeId }),
-      Product.countDocuments({ storeId })
+      Product.countDocuments({ storeId }),
+      Store.findById(storeId)
     ]);
 
+    // Calculate total from DELIVERED orders only
     const totalSales = orders
-      .filter(o => o.paymentStatus === 'paid')
+      .filter(o => o.status === 'delivered')
       .reduce((sum, o) => sum + o.total, 0);
+    
+    // Update store's totalSales in database
+    if (store && store.totalSales !== totalSales) {
+      store.totalSales = totalSales;
+      await store.save();
+    }
     
     const totalOrders = orders.length;
     const uniqueCustomers = new Set(orders.map(o => o.customer.email)).size;

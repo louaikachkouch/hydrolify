@@ -25,13 +25,14 @@ import {
  */
 export default function Storefront() {
   useAuth(); // Auth context for protected route
-  const { settings } = useStore();
+  const { settings, refreshSettings } = useStore();
   const { products, loadMyProducts, isLoading } = useProducts();
   
-  // Load products on mount
+  // Load products and settings on mount
   useEffect(() => {
     loadMyProducts();
-  }, [loadMyProducts]);
+    refreshSettings();
+  }, [loadMyProducts, refreshSettings]);
 
   // Ensure products is an array
   const productList = Array.isArray(products) ? products : [];
@@ -159,12 +160,20 @@ export default function Storefront() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div
-                className="flex items-center justify-center w-10 h-10 rounded-lg"
-                style={{ backgroundColor: settings.themeColor }}
-              >
-                <ShoppingBagIcon className="h-6 w-6 text-white" />
-              </div>
+              {settings.storeLogo ? (
+                <img
+                  src={settings.storeLogo}
+                  alt={settings.storeName}
+                  className="w-10 h-10 rounded-lg object-cover"
+                />
+              ) : (
+                <div
+                  className="flex items-center justify-center w-10 h-10 rounded-lg"
+                  style={{ backgroundColor: settings.themeColor }}
+                >
+                  <ShoppingBagIcon className="h-6 w-6 text-white" />
+                </div>
+              )}
               <span className="text-xl font-bold text-secondary-800">
                 {settings.storeName}
               </span>
@@ -401,12 +410,20 @@ export default function Storefront() {
             {/* Store Info */}
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: settings.themeColor }}
-                >
-                  <ShoppingBagIcon className="h-5 w-5 text-white" />
-                </div>
+                {settings.storeLogo ? (
+                  <img
+                    src={settings.storeLogo}
+                    alt={settings.storeName}
+                    className="w-10 h-10 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: settings.themeColor }}
+                  >
+                    <ShoppingBagIcon className="h-5 w-5 text-white" />
+                  </div>
+                )}
                 <span className="font-bold text-secondary-800">{settings.storeName}</span>
               </div>
               <p className="text-sm text-secondary-600">{settings.description}</p>

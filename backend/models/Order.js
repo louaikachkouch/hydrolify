@@ -30,6 +30,10 @@ const customerSchema = new mongoose.Schema({
     type: String,
     required: true,
     lowercase: true
+  },
+  phone: {
+    type: String,
+    trim: true
   }
 }, { _id: false });
 

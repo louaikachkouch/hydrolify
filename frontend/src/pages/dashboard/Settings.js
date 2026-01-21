@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { getStoreUrl, validateSubdomain } from '../../utils/subdomain';
@@ -19,6 +19,7 @@ import {
   LinkIcon,
   ExclamationCircleIcon,
   ClipboardDocumentIcon,
+  PhotoIcon,
 } from '@heroicons/react/24/outline';
 
 /**
@@ -48,6 +49,11 @@ export default function Settings() {
   
   const [isSaved, setIsSaved] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Logo state
+  const [storeLogo, setStoreLogo] = useState(settings.storeLogo || null);
+  const [logoError, setLogoError] = useState('');
+  const logoInputRef = useRef(null);
 
   // Update form when settings change
   useEffect(() => {
@@ -62,6 +68,7 @@ export default function Settings() {
       description: settings.description || '',
     });
     setSubdomain(settings.subdomain || '');
+    setStoreLogo(settings.storeLogo || null);
   }, [settings]);
 
   // Currency options
@@ -162,15 +169,22 @@ export default function Settings() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    updateSettings(formData);
-    setIsLoading(false);
-    setIsSaved(true);
-
-    // Hide saved message after 3 seconds
-    setTimeout(() => setIsSaved(false), 3000);
+    try {
+      // Include storeLogo in the update
+      const result = await updateSettings({ ...formData, storeLogo });
+      
+      if (result.success) {
+        setIsSaved(true);
+        // Hide saved message after 3 seconds
+        setTimeout(() => setIsSaved(false), 3000);
+      } else {
+        console.error('Failed to save settings:', result.error);
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -352,24 +366,95 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Logo Upload Placeholder */}
+          {/* Logo Upload */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-secondary-700 mb-2">
               Store Logo
             </label>
             <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-20 h-20 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl">
-                <span className="text-3xl font-bold text-gray-400">
-                  {formData.storeName?.charAt(0)?.toUpperCase() || 'S'}
-                </span>
+              <div className="flex items-center justify-center w-20 h-20 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden">
+                {storeLogo ? (
+                  <img
+                    src={storeLogo}
+                    alt="Store Logo"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-3xl font-bold text-gray-400">
+                    {formData.storeName?.charAt(0)?.toUpperCase() || 'S'}
+                  </span>
+                )}
               </div>
               <div>
-                <Button type="button" variant="secondary" size="sm">
-                  Upload Logo
-                </Button>
+                <input
+                  type="file"
+                  ref={logoInputRef}
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    
+                    // Check file size (128KB = 128 * 1024 bytes)
+                    const maxSize = 128 * 1024;
+                    if (file.size > maxSize) {
+                      setLogoError(`File too large. Maximum size is 128KB. Your file: ${(file.size / 1024).toFixed(1)}KB`);
+                      return;
+                    }
+                    
+                    // Check file type
+                    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+                    if (!validTypes.includes(file.type)) {
+                      setLogoError('Invalid file type. Please upload PNG, JPG, or WebP.');
+                      return;
+                    }
+                    
+                    setLogoError('');
+                    
+                    // Convert to base64
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      setStoreLogo(reader.result);
+                      setIsSaved(false);
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    <PhotoIcon className="h-4 w-4 mr-1" />
+                    Upload Logo
+                  </Button>
+                  {storeLogo && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setStoreLogo(null);
+                        setIsSaved(false);
+                        if (logoInputRef.current) logoInputRef.current.value = '';
+                      }}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
                 <p className="text-xs text-secondary-500 mt-1">
-                  PNG, JPG up to 2MB
+                  PNG, JPG, WebP up to 128KB
                 </p>
+                {logoError && (
+                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                    <ExclamationCircleIcon className="h-3 w-3" />
+                    {logoError}
+                  </p>
+                )}
               </div>
             </div>
           </div>

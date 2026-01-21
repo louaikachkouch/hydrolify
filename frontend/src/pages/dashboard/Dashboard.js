@@ -33,8 +33,41 @@ export default function Dashboard() {
   const productList = Array.isArray(products) ? products : [];
   const orderList = Array.isArray(allOrders) ? allOrders : [];
 
-  // Calculate total sales from orders
-  const totalSales = orderList.reduce((sum, order) => sum + (order.total || 0), 0);
+  // Calculate total sales from DELIVERED orders only
+  const totalSales = orderList
+    .filter(order => order.status === 'delivered')
+    .reduce((sum, order) => sum + (order.total || 0), 0);
+
+  // Calculate sales by day for the last 7 days (from delivered orders only)
+  const calculateRecentSales = () => {
+    const salesByDay = {};
+    
+    // Initialize last 7 days with 0
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      salesByDay[dateStr] = 0;
+    }
+    
+    // Sum delivered orders by day
+    orderList
+      .filter(order => order.status === 'delivered')
+      .forEach(order => {
+        const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+        if (salesByDay[orderDate] !== undefined) {
+          salesByDay[orderDate] += order.total || 0;
+        }
+      });
+    
+    // Convert to array sorted by date
+    return Object.entries(salesByDay)
+      .map(([date, amount]) => ({ date, amount }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+
+  const recentSales = calculateRecentSales();
+  const maxSale = Math.max(...recentSales.map(s => s.amount), 1); // Avoid division by 0
 
   // Calculate stats
   const stats = [
@@ -216,20 +249,24 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Sales Chart Placeholder */}
+      {/* Sales Chart */}
       <Card>
-        <CardTitle>Sales Overview</CardTitle>
+        <CardTitle>Sales Overview (Last 7 Days - Delivered Orders)</CardTitle>
         <div className="mt-4">
           <div className="flex items-end justify-between h-48 px-4">
-            {mockDashboardStats.recentSales.map((sale, index) => (
+            {recentSales.map((sale, index) => (
               <div
                 key={index}
-                className="flex flex-col items-center"
+                className="flex flex-col items-center flex-1"
               >
+                <div className="text-xs text-secondary-600 mb-1 font-medium">
+                  {sale.amount > 0 ? `${sale.amount.toFixed(0)} TND` : ''}
+                </div>
                 <div
                   className="w-10 bg-primary-500 rounded-t-lg transition-all hover:bg-primary-600"
                   style={{
-                    height: `${(sale.amount / 3000) * 100}%`,
+                    height: `${Math.max((sale.amount / maxSale) * 100, sale.amount > 0 ? 5 : 0)}%`,
+                    minHeight: sale.amount > 0 ? '8px' : '0px'
                   }}
                 />
                 <span className="text-xs text-secondary-500 mt-2">
@@ -240,6 +277,9 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          {recentSales.every(s => s.amount === 0) && (
+            <p className="text-secondary-500 text-center py-4">No delivered sales in the last 7 days</p>
+          )}
         </div>
       </Card>
         </>

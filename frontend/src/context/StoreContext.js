@@ -136,6 +136,20 @@ export function StoreProvider({ children }) {
   }, [stores]);
 
   /**
+   * Refresh current store settings
+   */
+  const refreshSettings = useCallback(async () => {
+    try {
+      const store = await storesAPI.getMyStore();
+      setSettings(store);
+      return store;
+    } catch (error) {
+      console.error('Failed to refresh settings:', error);
+      return null;
+    }
+  }, []);
+
+  /**
    * Update store settings
    * @param {Object} newSettings - Updated settings object
    */
@@ -157,6 +171,7 @@ export function StoreProvider({ children }) {
     isLoading,
     setCurrentStore,
     refreshStores,
+    refreshSettings,
     getStoreBySlug,
     getStoreBySubdomain,
     getStoreById,

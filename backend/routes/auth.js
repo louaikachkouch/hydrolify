@@ -106,15 +106,21 @@ router.post('/login', [
     }
 
     const { email, password } = req.body;
+    console.log('Login attempt for:', email);
 
     // Find user
     const user = await User.findOne({ email }).populate('storeId');
     if (!user) {
+      console.log('User not found:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    console.log('User found:', user.email, 'Password hash exists:', !!user.password);
+
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('Password match:', isMatch);
+    
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }

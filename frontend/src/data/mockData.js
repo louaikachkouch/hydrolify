@@ -3,7 +3,7 @@ export const companyBranding = {
   name: 'Hydrolify',
   tagline: 'Build. Sell. Grow.',
   description: 'The all-in-one e-commerce platform for modern businesses',
-  logo: null,
+  logo: "../public/logo.png",
   website: 'https://hydrolify.vercel.app',
   supportEmail: 'support@hydrolify.com',
   socialLinks: {

@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useProducts } from '../../context/ProductsContext';
 import { useOrders } from '../../context/OrdersContext';
-import { Button, Badge, Spinner } from '../../components/ui';
+import { ordersAPI } from '../../services/api';
+import { Button, Badge, Spinner, Input } from '../../components/ui';
 import { companyBranding } from '../../data/mockData';
 import { getSubdomain, getStoreUrl } from '../../utils/subdomain';
 import {
@@ -15,6 +16,7 @@ import {
   MinusIcon,
   HeartIcon,
   StarIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 // ShoppingCartSolidIcon available from '@heroicons/react/24/solid' if needed
 
@@ -37,6 +39,18 @@ export default function PublicStorefront() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  
+  // Checkout state
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [orderError, setOrderError] = useState('');
+  const [customerInfo, setCustomerInfo] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+  });
 
   // Load store data based on subdomain or slug
   useEffect(() => {
@@ -97,11 +111,12 @@ export default function PublicStorefront() {
 
   // Cart functions
   const addToCart = (product) => {
-    const existingItem = cart.find((item) => item.id === product.id);
+    const productId = product._id || product.id;
+    const existingItem = cart.find((item) => (item._id || item.id) === productId);
     if (existingItem) {
       setCart(
         cart.map((item) =>
-          item.id === product.id
+          (item._id || item.id) === productId
             ? { ...item, quantity: item.quantity + 1 }
             : item
         )
@@ -112,13 +127,13 @@ export default function PublicStorefront() {
   };
 
   const removeFromCart = (productId) => {
-    setCart(cart.filter((item) => item.id !== productId));
+    setCart(cart.filter((item) => (item._id || item.id) !== productId));
   };
 
   const updateQuantity = (productId, change) => {
     setCart(
       cart.map((item) => {
-        if (item.id === productId) {
+        if ((item._id || item.id) === productId) {
           const newQuantity = item.quantity + change;
           return newQuantity > 0 ? { ...item, quantity: newQuantity } : item;
         }
@@ -133,6 +148,51 @@ export default function PublicStorefront() {
     0
   );
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Handle checkout submission
+  const handleCheckout = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setOrderError('');
+
+    try {
+      const orderData = {
+        storeId: store._id || store.id,
+        customer: {
+          name: customerInfo.name,
+          email: customerInfo.email,
+          phone: customerInfo.phone,
+        },
+        items: cart.map((item) => ({
+          productId: item._id || item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image,
+        })),
+        shippingAddress: customerInfo.address,
+        total: cartTotal,
+      };
+
+      await ordersAPI.createPublicOrder(orderData);
+      
+      // Success - clear cart and show success message
+      setOrderSuccess(true);
+      setCart([]);
+      setCustomerInfo({ name: '', email: '', phone: '', address: '' });
+      
+      // Close checkout after 3 seconds
+      setTimeout(() => {
+        setOrderSuccess(false);
+        setIsCheckoutOpen(false);
+        setIsCartOpen(false);
+      }, 3000);
+    } catch (error) {
+      setOrderError(error.message || 'Failed to place order. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -176,12 +236,20 @@ export default function PublicStorefront() {
                     className="block p-3 bg-white rounded-lg border border-gray-200 hover:border-primary-300 hover:shadow-sm transition-all"
                   >
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: s.themeColor }}
-                      >
-                        <ShoppingBagIcon className="h-5 w-5 text-white" />
-                      </div>
+                      {s.storeLogo ? (
+                        <img
+                          src={s.storeLogo}
+                          alt={s.storeName}
+                          className="w-10 h-10 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div
+                          className="w-10 h-10 rounded-lg flex items-center justify-center"
+                          style={{ backgroundColor: s.themeColor }}
+                        >
+                          <ShoppingBagIcon className="h-5 w-5 text-white" />
+                        </div>
+                      )}
                       <div className="text-left">
                         <p className="font-medium text-secondary-800">{s.storeName}</p>
                         <p className="text-xs text-secondary-500">{s.subdomain}.hydrolify.vercel.app</p>
@@ -215,12 +283,20 @@ export default function PublicStorefront() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div
-                className="flex items-center justify-center w-10 h-10 rounded-lg"
-                style={{ backgroundColor: store.themeColor }}
-              >
-                <ShoppingBagIcon className="h-6 w-6 text-white" />
-              </div>
+              {store.storeLogo ? (
+                <img
+                  src={store.storeLogo}
+                  alt={store.storeName}
+                  className="w-10 h-10 rounded-lg object-cover"
+                />
+              ) : (
+                <div
+                  className="flex items-center justify-center w-10 h-10 rounded-lg"
+                  style={{ backgroundColor: store.themeColor }}
+                >
+                  <ShoppingBagIcon className="h-6 w-6 text-white" />
+                </div>
+              )}
               <span className="text-xl font-bold text-secondary-800">
                 {store.storeName}
               </span>
@@ -452,12 +528,20 @@ export default function PublicStorefront() {
             {/* Store Info */}
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: store.themeColor }}
-                >
-                  <ShoppingBagIcon className="h-5 w-5 text-white" />
-                </div>
+                {store.storeLogo ? (
+                  <img
+                    src={store.storeLogo}
+                    alt={store.storeName}
+                    className="w-10 h-10 rounded-lg object-cover"
+                  />
+                ) : (
+                  <div
+                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: store.themeColor }}
+                  >
+                    <ShoppingBagIcon className="h-5 w-5 text-white" />
+                  </div>
+                )}
                 <span className="font-bold text-secondary-800">{store.storeName}</span>
               </div>
               <p className="text-sm text-secondary-600">{store.description}</p>
@@ -546,7 +630,7 @@ export default function PublicStorefront() {
                           </p>
                           <div className="flex items-center gap-2 mt-2">
                             <button
-                              onClick={() => updateQuantity(item.id, -1)}
+                              onClick={() => updateQuantity(item._id || item.id, -1)}
                               className="p-1 rounded-md bg-white border border-gray-200 hover:bg-gray-100"
                             >
                               <MinusIcon className="h-4 w-4" />
@@ -555,13 +639,13 @@ export default function PublicStorefront() {
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => updateQuantity(item.id, 1)}
+                              onClick={() => updateQuantity(item._id || item.id, 1)}
                               className="p-1 rounded-md bg-white border border-gray-200 hover:bg-gray-100"
                             >
                               <PlusIcon className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => removeFromCart(item.id)}
+                              onClick={() => removeFromCart(item._id || item.id)}
                               className="ml-auto text-xs text-red-500 hover:text-red-600"
                             >
                               Remove
@@ -590,11 +674,152 @@ export default function PublicStorefront() {
                     className="w-full"
                     size="lg"
                     style={{ backgroundColor: store.themeColor }}
+                    onClick={() => {
+                      setIsCartOpen(false);
+                      setIsCheckoutOpen(true);
+                    }}
                   >
                     Proceed to Checkout
                   </Button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout Modal */}
+      {isCheckoutOpen && (
+        <div className="fixed inset-0 z-50">
+          {/* Overlay */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => !isSubmitting && setIsCheckoutOpen(false)}
+          />
+
+          {/* Checkout Panel */}
+          <div className="absolute inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div className="flex flex-col h-full max-h-[90vh]">
+              {/* Header */}
+              <div
+                className="flex items-center justify-between p-4 text-white"
+                style={{ backgroundColor: store.themeColor }}
+              >
+                <h2 className="text-lg font-semibold">Checkout</h2>
+                <button
+                  onClick={() => !isSubmitting && setIsCheckoutOpen(false)}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  disabled={isSubmitting}
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {orderSuccess ? (
+                  <div className="text-center py-12">
+                    <CheckCircleIcon className="h-20 w-20 text-green-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-secondary-800 mb-2">
+                      Order Placed Successfully!
+                    </h3>
+                    <p className="text-secondary-600">
+                      Thank you for your order. We'll contact you shortly with delivery details.
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleCheckout} className="space-y-4">
+                    {/* Order Summary */}
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                      <h3 className="font-semibold text-secondary-800 mb-3">Order Summary</h3>
+                      <div className="space-y-2">
+                        {cart.map((item) => (
+                          <div key={item.id || item._id} className="flex justify-between text-sm">
+                            <span className="text-secondary-600">
+                              {item.name} x {item.quantity}
+                            </span>
+                            <span className="font-medium">
+                              {(item.price * item.quantity).toFixed(2)} TND
+                            </span>
+                          </div>
+                        ))}
+                        <div className="border-t pt-2 mt-2 flex justify-between font-bold">
+                          <span>Total</span>
+                          <span style={{ color: store.themeColor }}>
+                            {cartTotal.toFixed(2)} TND
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Customer Information */}
+                    <div>
+                      <h3 className="font-semibold text-secondary-800 mb-3">Your Information</h3>
+                      <div className="space-y-3">
+                        <Input
+                          label="Full Name"
+                          placeholder="Enter your full name"
+                          value={customerInfo.name}
+                          onChange={(e) => setCustomerInfo({ ...customerInfo, name: e.target.value })}
+                          required
+                        />
+                        <Input
+                          label="Email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={customerInfo.email}
+                          onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
+                          required
+                        />
+                        <Input
+                          label="Phone Number"
+                          placeholder="Enter your phone number"
+                          value={customerInfo.phone}
+                          onChange={(e) => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
+                        />
+                        <div>
+                          <label className="block text-sm font-medium text-secondary-700 mb-1">
+                            Shipping Address
+                          </label>
+                          <textarea
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            rows="3"
+                            placeholder="Enter your full shipping address"
+                            value={customerInfo.address}
+                            onChange={(e) => setCustomerInfo({ ...customerInfo, address: e.target.value })}
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Error Message */}
+                    {orderError && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                        {orderError}
+                      </div>
+                    )}
+
+                    {/* Submit Button */}
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      size="lg"
+                      style={{ backgroundColor: store.themeColor }}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <Spinner size="sm" />
+                          Placing Order...
+                        </span>
+                      ) : (
+                        `Place Order - ${cartTotal.toFixed(2)} TND`
+                      )}
+                    </Button>
+                  </form>
+                )}
+              </div>
             </div>
           </div>
         </div>
