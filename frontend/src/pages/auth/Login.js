@@ -59,15 +59,6 @@ export default function Login() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <Card className="px-8 py-10">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Demo Credentials Notice */}
-            <div className="bg-primary-50 border border-primary-100 rounded-lg p-4">
-              <p className="text-sm text-primary-700">
-                <strong>Demo accounts:</strong><br />
-                • demo@Hydrolify.com / demo123 (Demo Store)<br />
-                • fashion@Hydrolify.com / fashion123 (Fashion Boutique)<br />
-                • tech@Hydrolify.com / tech123 (Tech Zone)
-              </p>
-            </div>
 
             {/* Error Message */}
             {error && (
